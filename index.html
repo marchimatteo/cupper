@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CUPPER</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+</head>
+<body>
+
+<div class="container pt-4">
+    <div class="card">
+        <div class="card-header">
+            Estrai CUP da descrizione budget
+        </div>
+        <div class="card-body">
+            <!--<h5 class="card-title">Special title treatment</h5>
+            <p class="card-text">With supporting text below as a natural lead-in to additional content.</p>-->
+            <form>
+                <div class="row g-3 mb-3 align-items-center">
+                    <div class="col-auto col-md-3">
+                        <label for="inputNRigaIntestazione" class="col-form-label">N. riga intestazione</label>
+                    </div>
+                    <div class="col-auto col-md-3">
+                        <input type="number" min="1" value="5" id="inputNRigaIntestazione" class="form-control" aria-describedby="inputNRigaIntestazioneHelp">
+                    </div>
+                    <div class="col-auto col-md-6">
+                        <span id="inputNRigaIntestazioneHelp" class="form-text">
+                        </span>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3 align-items-center">
+                    <div class="col-auto col-md-3">
+                        <label for="inputNColonnaVuotaPerCUP" class="col-form-label">N. colonna CUP estratti</label>
+                    </div>
+                    <div class="col-auto col-md-3">
+                        <input type="number" min="1" value="9" id="inputNColonnaVuotaPerCUP" class="form-control" aria-describedby="inputNColonnaVuotaPerCUPHelp">
+                    </div>
+                    <div class="col-auto col-md-6">
+                        <span id="inputNColonnaVuotaPerCUPHelp" class="form-text">
+                          La colonna deve essere libera
+                        </span>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3 align-items-center">
+                    <div class="col-auto col-md-3">
+                        <label for="inputNColonnaDescBudget" class="col-form-label">N. colonna desc. budget</label>
+                    </div>
+                    <div class="col-auto col-md-3">
+                        <input type="number" min="1" value="8" id="inputNColonnaDescBudget" class="form-control" aria-describedby="inputNColonnaDescBudgetHelp">
+                    </div>
+                    <div class="col-auto col-md-6">
+                        <span id="inputNColonnaDescBudgetHelp" class="form-text">
+                        </span>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3 align-items-center">
+                    <div class="col-auto col-md-3">
+                        <label for="inputCaricaBO" class="col-form-label">Carica estrazione BO</label>
+                    </div>
+                    <div class="col-auto col-md-9">
+                        <div class="input-group">
+                            <input type="file" class="form-control" id="inputCaricaBO" aria-label="Upload">
+                        </div>
+                    </div>
+                </div>
+
+            </form>
+
+            <div id="status"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+
+<script>
+window.onload = async (event) => {
+    //const moduleServiceContainer = await import("./service-container.js");
+    //const container = new moduleServiceContainer.ServiceContainer(XLSX);
+
+    document.getElementById('inputCaricaBO').addEventListener('change', handleFile, false);
+
+    async function handleFile(event) {
+        const nRigaIntestazione = Number(document.getElementById('inputNRigaIntestazione').value);
+        const nColonnaVuotaPerCUP = Number(document.getElementById('inputNColonnaVuotaPerCUP').value);
+        const nColonnaDescBudget = Number(document.getElementById('inputNColonnaDescBudget').value);
+
+        const file = event.target.files[0];
+        if (!file) {
+            console.error('No file found');
+            return;
+        }
+
+        const statusDiv = document.getElementById('status');
+        statusDiv.innerText = 'Elaborazione del file in corso...';
+
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+
+            // Inizializza la cartella di lavoro con ExcelJS
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(arrayBuffer);
+
+            // Prendi il primo foglio di lavoro
+            const worksheet = workbook.worksheets[0];
+
+            // RegEx per identificare i codici CUP (15 caratteri alfanumerici)[cite: 2]
+            const cupRegex = /\b[A-Z0-9]{15}\b/g;
+
+            // Riga 6 in poi (in ExcelJS le righe e colonne partono da 1)
+            const START_ROW = nRigaIntestazione + 1;
+            const totalRows = worksheet.rowCount;
+
+            for (let r = START_ROW; r <= totalRows; r++) {
+                const row = worksheet.getRow(r);
+
+                // Colonna H = 8, Colonna I = 9
+                const cellHValue = row.getCell(nColonnaDescBudget).value;
+
+                if (cellHValue) {
+                    // Converte il valore in testo gestendo eventuali strutture complesse (es. formule, rich text)
+                    let textH = '';
+                    if (typeof cellHValue === 'object' && cellHValue.result !== undefined) {
+                        textH = String(cellHValue.result);
+                    } else if (typeof cellHValue === 'object' && cellHValue.richText) {
+                        textH = cellHValue.richText.map(t => t.text).join('');
+                    } else {
+                        textH = String(cellHValue);
+                    }
+
+                    const cupMatches = textH.match(cupRegex);
+
+                    if (cupMatches && cupMatches.length > 0) {
+                        // Rimuove eventuali duplicati e unisce i CUP con ';'
+                        const uniqueCups = [...new Set(cupMatches)];
+                        row.getCell(nColonnaVuotaPerCUP).value = uniqueCups.join(';');
+                    }
+                }
+            }
+
+            statusDiv.innerText = 'Generazione del file scaricabile...';
+
+            // Genera il buffer lasciando intatta la struttura XML e la formattazione
+            const buffer = await workbook.xlsx.writeBuffer();
+
+            // --- DOWNLOAD NATIVO BROWSER (Senza FileSaver) ---
+            const blob = new Blob([buffer], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            });
+
+            const originalName = file.name.replace(/\.[^/.]+\$/, "");
+            const outputFilename = `${originalName}_CUP_estratti.xlsx`;
+
+            // Crea un link temporaneo nel DOM per forzare il download
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = outputFilename;
+            document.body.appendChild(a);
+            a.click();
+
+            // Pulizia degli elementi temporanei
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            statusDiv.innerText = 'Elaborazione completata con successo!';
+
+        } catch (error) {
+            console.error(error);
+            statusDiv.innerText = 'Si è verificato un errore durante l\'elaborazione del file.';
+        }
+    }
+}
+</script>
+
+</body>
+</html>
